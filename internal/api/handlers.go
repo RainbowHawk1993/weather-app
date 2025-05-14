@@ -127,3 +127,31 @@ func (h *SubscriptionHandler) ConfirmSubscription(w http.ResponseWriter, r *http
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "Subscription confirmed successfully"})
 }
+
+// Unsubscribe handles GET /api/unsubscribe/{token}
+func (h *SubscriptionHandler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	if token == "" {
+		http.Error(w, `{"error": "Token is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	err := h.subService.Unsubscribe(token)
+	if err != nil {
+		log.Printf("Unsubscribe handler error for token %s: %v", token, err)
+		if errors.Is(err, service.ErrSubscriptionNotFound) || errors.Is(err, service.ErrInvalidToken) {
+			if errors.Is(err, service.ErrInvalidToken) {
+				http.Error(w, `{"error": "Invalid token format"}`, http.StatusBadRequest) // 400
+			} else {
+				http.Error(w, `{"error": "Token not found"}`, http.StatusNotFound) // 404
+			}
+		} else {
+			http.Error(w, `{"error": "Failed to process unsubscription"}`, http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Unsubscribed successfully"})
+}

@@ -112,3 +112,30 @@ func (s *SubscriptionService) ConfirmSubscription(token string) error {
 	log.Printf("Subscription ID %s confirmed for email %s", sub.ID, sub.Email)
 	return nil
 }
+
+func (s *SubscriptionService) Unsubscribe(token string) error {
+	if _, err := uuid.Parse(token); err != nil {
+		return ErrInvalidToken
+	}
+
+	sub, err := s.repo.FindByUnsubscribeToken(token)
+	if err != nil {
+		log.Printf("Error finding subscription by unsubscribe token %s: %v", token, err)
+		return fmt.Errorf("database error during unsubscribe lookup")
+	}
+
+	if sub == nil {
+		return ErrSubscriptionNotFound
+	}
+
+	if err := s.repo.Delete(sub.ID); err != nil {
+		if err.Error() == "subscription not found for deletion" {
+			return ErrSubscriptionNotFound
+		}
+		log.Printf("Error deleting subscription ID %s: %v", sub.ID, err)
+		return fmt.Errorf("could not process unsubscription")
+	}
+
+	log.Printf("Subscription ID %s (email: %s, city: %s) unsubscribed successfully.", sub.ID, sub.Email, sub.City)
+	return nil
+}

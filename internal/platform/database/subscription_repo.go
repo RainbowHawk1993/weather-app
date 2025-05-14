@@ -15,8 +15,8 @@ type SubscriptionRepository interface {
 	FindByEmailAndCity(email, city string) (*core.Subscription, error)
 	FindByConfirmationToken(token string) (*core.Subscription, error)
 	Confirm(id string) error
-	// FindByUnsubscribeToken
-	// Delete
+	FindByUnsubscribeToken(token string) (*core.Subscription, error)
+	Delete(id string) error
 }
 
 type PGSubscriptionRepository struct {
@@ -82,6 +82,36 @@ func (r *PGSubscriptionRepository) Confirm(id string) error {
 	}
 	if rowsAffected == 0 {
 		return errors.New("subscription not found or already confirmed")
+	}
+	return nil
+}
+
+func (r *PGSubscriptionRepository) FindByUnsubscribeToken(token string) (*core.Subscription, error) {
+	var sub core.Subscription
+	query := `SELECT id, email, city, frequency, confirmation_token, is_confirmed, unsubscribe_token, created_at, updated_at
+              FROM subscriptions WHERE unsubscribe_token = $1`
+	err := r.db.Get(&sub, query, token)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find subscription by unsubscribe token: %w", err)
+	}
+	return &sub, nil
+}
+
+func (r *PGSubscriptionRepository) Delete(id string) error {
+	query := `DELETE FROM subscriptions WHERE id = $1`
+	res, err := r.db.Exec(query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete subscription: %w", err)
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected on delete: %w", err)
+	}
+	if rowsAffected == 0 {
+		return errors.New("subscription not found for deletion")
 	}
 	return nil
 }

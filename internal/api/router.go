@@ -18,7 +18,7 @@ func NewRouter(wh *WeatherHandler, sh *SubscriptionHandler) *chi.Mux {
 
 		r.Post("/subscribe", sh.Subscribe)
 		r.Get("/confirm/{token}", sh.ConfirmSubscription)
-		// r.Get("/unsubscribe/{token}", sh.Unsubscribe)
+		r.Get("/unsubscribe/{token}", sh.Unsubscribe)
 	})
 
 	return r
