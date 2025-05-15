@@ -17,6 +17,7 @@ type SubscriptionRepository interface {
 	Confirm(id string) error
 	FindByUnsubscribeToken(token string) (*core.Subscription, error)
 	Delete(id string) error
+	GetAllConfirmed() ([]core.Subscription, error)
 }
 
 type PGSubscriptionRepository struct {
@@ -114,4 +115,18 @@ func (r *PGSubscriptionRepository) Delete(id string) error {
 		return errors.New("subscription not found for deletion")
 	}
 	return nil
+}
+
+func (r *PGSubscriptionRepository) GetAllConfirmed() ([]core.Subscription, error) {
+	var subs []core.Subscription
+	query := `SELECT id, email, city, frequency, confirmation_token, is_confirmed, unsubscribe_token, created_at, updated_at
+              FROM subscriptions WHERE is_confirmed = TRUE`
+	err := r.db.Select(&subs, query)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return []core.Subscription{}, nil
+		}
+		return nil, fmt.Errorf("failed to get all confirmed subscriptions: %w", err)
+	}
+	return subs, nil
 }

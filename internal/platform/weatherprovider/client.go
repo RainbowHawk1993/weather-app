@@ -29,6 +29,10 @@ type WeatherAPIResponse struct {
 	} `json:"error,omitempty"`
 }
 
+type WeatherProvider interface {
+	FetchWeather(city string) (*core.Weather, error)
+}
+
 type Client struct {
 	apiKey     string
 	httpClient *http.Client

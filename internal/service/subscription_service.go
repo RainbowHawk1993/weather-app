@@ -1,13 +1,14 @@
-// internal/service/subscription_service.go
 package service
 
 import (
 	"errors"
 	"fmt"
 	"log"
+	"time"
 	"weather-app/internal/core"
 	"weather-app/internal/platform/database"
 	"weather-app/internal/platform/email"
+	"weather-app/internal/platform/weatherprovider"
 
 	"github.com/google/uuid"
 )
@@ -20,20 +21,23 @@ var (
 )
 
 type SubscriptionService struct {
-	repo       database.SubscriptionRepository
-	emailer    email.Service
-	appBaseURL string
+	repo            database.SubscriptionRepository
+	emailer         email.Service
+	weatherProvider weatherprovider.WeatherProvider
+	appBaseURL      string
 }
 
 func NewSubscriptionService(
 	repo database.SubscriptionRepository,
 	emailer email.Service,
+	weatherProvider weatherprovider.WeatherProvider,
 	appBaseURL string,
 ) *SubscriptionService {
 	return &SubscriptionService{
-		repo:       repo,
-		emailer:    emailer,
-		appBaseURL: appBaseURL,
+		repo:            repo,
+		emailer:         emailer,
+		weatherProvider: weatherProvider,
+		appBaseURL:      appBaseURL,
 	}
 }
 
@@ -138,4 +142,48 @@ func (s *SubscriptionService) Unsubscribe(token string) error {
 
 	log.Printf("Subscription ID %s (email: %s, city: %s) unsubscribed successfully.", sub.ID, sub.Email, sub.City)
 	return nil
+}
+
+func (s *SubscriptionService) SendWeatherUpdates() {
+	log.Println("Starting scheduled task: SendWeatherUpdates")
+	confirmedSubs, err := s.repo.GetAllConfirmed()
+	if err != nil {
+		log.Printf("Error fetching confirmed subscriptions for updates: %v", err)
+		return
+	}
+
+	if len(confirmedSubs) == 0 {
+		log.Println("No confirmed subscriptions to send updates to.")
+		return
+	}
+
+	log.Printf("Found %d confirmed subscriptions to process.", len(confirmedSubs))
+
+	for _, sub := range confirmedSubs {
+		// Should check sub.Frequency ("hourly", "daily")
+
+		log.Printf("Processing subscription for %s in %s (Frequency: %s)", sub.Email, sub.City, sub.Frequency)
+
+		weatherData, err := s.weatherProvider.FetchWeather(sub.City)
+		if err != nil {
+			log.Printf("Failed to fetch weather for %s for subscriber %s: %v", sub.City, sub.Email, err)
+			continue
+		}
+
+		weatherInfo := fmt.Sprintf(
+			"Current weather in %s:\nTemperature: %.1f°C\nHumidity: %.0f%%\nDescription: %s",
+			sub.City, weatherData.Temperature, weatherData.Humidity, weatherData.Description,
+		)
+
+		unsubscribeLink := fmt.Sprintf("%s/api/unsubscribe/%s", s.appBaseURL, sub.UnsubscribeToken)
+
+		err = s.emailer.SendWeatherUpdateEmail(sub.Email, sub.City, weatherInfo, unsubscribeLink)
+		if err != nil {
+			log.Printf("Failed to send weather update email to %s for city %s: %v", sub.Email, sub.City, err)
+		} else {
+			log.Printf("Successfully sent weather update to %s for city %s", sub.Email, sub.City)
+		}
+		time.Sleep(1 * time.Second)
+	}
+	log.Println("Finished scheduled task: SendWeatherUpdates")
 }
