@@ -82,7 +82,8 @@ func (s *SubscriptionService) CreateSubscription(req core.SubscriptionRequest) e
 		log.Printf("Failed to send confirmation email to %s: %v", newSub.Email, err)
 	}
 
-	log.Printf("Subscription created for %s, city %s. Confirmation token: %s", newSub.Email, newSub.City, confirmationToken)
+	log.Printf("Subscription created for %s, city %s. Confirmation token: %s. Unsubscribe token: %s.",
+		newSub.Email, newSub.City, confirmationToken, unsubscribeToken)
 	return nil
 }
 
