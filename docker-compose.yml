@@ -1,0 +1,52 @@
+version: '3'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: weather_app_service
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - APP_BASE_URL=http://localhost:8080
+      - WEATHERAPI_COM_KEY=${WEATHERAPI_COM_KEY}
+
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_NAME=${POSTGRES_DB}
+      - DB_SSLMODE=disable
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - weatherapp_network
+
+  db:
+    image: postgres:14
+    container_name: weather_app_db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - weatherapp_network
+
+volumes:
+  postgres_data:
+
+networks:
+  weatherapp_network:
+    driver: bridge
