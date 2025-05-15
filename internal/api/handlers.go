@@ -13,15 +13,11 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-type WeatherProvider interface {
-	FetchWeather(city string) (*core.Weather, error)
-}
-
 type WeatherHandler struct {
-	provider WeatherProvider
+	provider weatherprovider.WeatherProvider
 }
 
-func NewWeatherHandler(p WeatherProvider) *WeatherHandler {
+func NewWeatherHandler(p weatherprovider.WeatherProvider) *WeatherHandler {
 	return &WeatherHandler{provider: p}
 }
 

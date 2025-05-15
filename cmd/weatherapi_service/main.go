@@ -11,10 +11,9 @@ import (
 	"weather-app/internal/api"
 	"weather-app/internal/platform/database"
 	"weather-app/internal/platform/email"
+	"weather-app/internal/platform/scheduler"
 	"weather-app/internal/platform/weatherprovider"
 	"weather-app/internal/service"
-
-	"github.com/robfig/cron/v3"
 )
 
 func main() {
@@ -95,22 +94,13 @@ func main() {
 	// Business Logic Services
 	subscriptionSvc := service.NewSubscriptionService(subRepo, emailService, weatherClient, appBaseURL)
 
-	// Cron Scheduler
-	c := cron.New(cron.WithChain(
-		cron.SkipIfStillRunning(cron.DefaultLogger),
-		cron.Recover(cron.DefaultLogger),
-	))
+	// Subscription service schjeduler
+	schedulerService := scheduler.NewScheduler(subscriptionSvc)
 
-	_, err = c.AddFunc("*/2 * * * *", func() {
-		log.Println("Scheduler triggered SendWeatherUpdates job.")
-		subscriptionSvc.SendWeatherUpdates()
-	})
-	if err != nil {
-		log.Fatalf("Could not add cron job: %v", err)
+	weatherUpdateCronSpec := "*/2 * * * *" // every 2 minutes
+	if err := schedulerService.SetupAndStartDefaultJobs(weatherUpdateCronSpec); err != nil {
+		log.Fatalf("Could not setup and start scheduler jobs: %v", err)
 	}
-
-	c.Start()
-	log.Println("Cron scheduler started.")
 
 	// API Handlers
 	weatherHandler := api.NewWeatherHandler(weatherClient)
