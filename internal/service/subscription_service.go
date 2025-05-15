@@ -143,30 +143,50 @@ func (s *SubscriptionService) Unsubscribe(token string) error {
 	log.Printf("Subscription ID %s (email: %s, city: %s) unsubscribed successfully.", sub.ID, sub.Email, sub.City)
 	return nil
 }
-
 func (s *SubscriptionService) SendWeatherUpdates() {
-	log.Println("Starting scheduled task: SendWeatherUpdates")
+	log.Println("Scheduler: Running SendWeatherUpdates job.")
+	now := time.Now().UTC()
+
 	confirmedSubs, err := s.repo.GetAllConfirmed()
 	if err != nil {
-		log.Printf("Error fetching confirmed subscriptions for updates: %v", err)
+		log.Printf("Scheduler: Error fetching confirmed subscriptions: %v", err)
 		return
 	}
 
 	if len(confirmedSubs) == 0 {
-		log.Println("No confirmed subscriptions to send updates to.")
+		log.Println("Scheduler: No confirmed subscriptions to process.")
 		return
 	}
 
-	log.Printf("Found %d confirmed subscriptions to process.", len(confirmedSubs))
+	log.Printf("Scheduler: Processing %d confirmed subscriptions at %s.", len(confirmedSubs), now.Format(time.RFC3339))
 
 	for _, sub := range confirmedSubs {
-		// Should check sub.Frequency ("hourly", "daily")
+		isDue := false
+		switch sub.Frequency {
+		case "hourly":
+			if now.Minute() == 0 { // Start of the hour
+				isDue = true
+			}
 
-		log.Printf("Processing subscription for %s in %s (Frequency: %s)", sub.Email, sub.City, sub.Frequency)
+		case "daily":
+			targetHourDaily := 8 // 8 AM UTC
+			if now.Hour() == targetHourDaily && now.Minute() == 0 {
+				isDue = true
+			}
+		default:
+			log.Printf("Scheduler: Unknown frequency '%s' for subscription ID %s. Skipping.", sub.Frequency, sub.ID)
+			continue
+		}
+
+		if !isDue {
+			continue
+		}
+
+		log.Printf("Scheduler: Update DUE for %s (%s) in %s.", sub.Email, sub.Frequency, sub.City)
 
 		weatherData, err := s.weatherProvider.FetchWeather(sub.City)
 		if err != nil {
-			log.Printf("Failed to fetch weather for %s for subscriber %s: %v", sub.City, sub.Email, err)
+			log.Printf("Scheduler: Failed to fetch weather for %s (subscriber %s): %v", sub.City, sub.Email, err)
 			continue
 		}
 
@@ -174,16 +194,13 @@ func (s *SubscriptionService) SendWeatherUpdates() {
 			"Current weather in %s:\nTemperature: %.1f°C\nHumidity: %.0f%%\nDescription: %s",
 			sub.City, weatherData.Temperature, weatherData.Humidity, weatherData.Description,
 		)
-
 		unsubscribeLink := fmt.Sprintf("%s/api/unsubscribe/%s", s.appBaseURL, sub.UnsubscribeToken)
 
-		err = s.emailer.SendWeatherUpdateEmail(sub.Email, sub.City, weatherInfo, unsubscribeLink)
-		if err != nil {
-			log.Printf("Failed to send weather update email to %s for city %s: %v", sub.Email, sub.City, err)
+		if err := s.emailer.SendWeatherUpdateEmail(sub.Email, sub.City, weatherInfo, unsubscribeLink); err != nil {
+			log.Printf("Scheduler: Failed to send weather update to %s for city %s: %v", sub.Email, sub.City, err)
 		} else {
-			log.Printf("Successfully sent weather update to %s for city %s", sub.Email, sub.City)
+			log.Printf("Scheduler: Successfully sent weather update to %s for city %s.", sub.Email, sub.City)
 		}
-		time.Sleep(1 * time.Second)
 	}
-	log.Println("Finished scheduled task: SendWeatherUpdates")
+	log.Println("Scheduler: Finished SendWeatherUpdates job run.")
 }

@@ -97,7 +97,7 @@ func main() {
 	// Subscription service schjeduler
 	schedulerService := scheduler.NewScheduler(subscriptionSvc)
 
-	weatherUpdateCronSpec := "*/2 * * * *" // every 2 minutes
+	weatherUpdateCronSpec := "*/15 * * * *" // every 15 minutes
 	if err := schedulerService.SetupAndStartDefaultJobs(weatherUpdateCronSpec); err != nil {
 		log.Fatalf("Could not setup and start scheduler jobs: %v", err)
 	}
